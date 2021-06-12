@@ -1,0 +1,10 @@
+;; shadow-cljs configuration
+{:source-paths ["src" "test"]
+
+ :dependencies
+ []
+
+ :builds
+ {:test {:target :node-test
+         :output-to "generated/tests.js"
+         :ns-regexp "-test$"}}}
