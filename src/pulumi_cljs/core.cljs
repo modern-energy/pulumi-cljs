@@ -1,6 +1,7 @@
 (ns pulumi-cljs.core
   "Tools for working with Pulumi from CLJS"
-  (:require ["@pulumi/pulumi" :as p])
+  (:require ["@pulumi/pulumi" :as p]
+            [clojure.walk :as walk])
   (:require-macros [pulumi-cljs.core]))
 
 (defn resource
@@ -23,8 +24,19 @@
 (def load-cfg (memoize load-cfg*))
 
 (defn cfg
-  "Retrieve a value from the Pulumi configuration for the current
-  project, converting data structures to Clojure data."
+  "Retrieve a single value from the Pulumi configuration for the current
+  project. If the result is the string value 'false', returns boolean
+  'false' instead (this avoids a lot of unexpected issues with YAML
+  parsing."
+  [key]
+  (let [val (.require ^p/Config (load-cfg (p/getProject)) key)]
+    (if (= "false" (.toLowerCase val))
+      false
+      val)))
+
+(defn cfg-obj
+  "Retrieve a data structure value from the Pulumi configuration for the
+  current project, converting data structures to Clojure data."
   [key]
   (let [c (load-cfg (p/getProject))]
     (js->clj
@@ -49,3 +61,17 @@
   "Alias for pulumi.all since JS modules can't be imported into the Clojure macro namespace"
   [args]
   (apply p/all args))
+
+(defn prepare-output
+  "Walk a data structure and replace all Resource objects with a map
+  containing their Pulumi URN and provider ID, then convert to a JS
+  object."
+  [output]
+  (clj->js
+    (walk/prewalk (fn [form]
+                    (if (instance? p/Resource form)
+                      {:urn (:urn form)
+                       :id (:id form)}
+                      form))
+      output)))
+
