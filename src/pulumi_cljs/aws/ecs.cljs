@@ -82,6 +82,8 @@ Config properties:
 
   :subdomain - The subdomain to use for the DNS entry. May be null or an empty string if no subdomain is desired.
 
+  :certificate-arn - The ARN of a SSL certificate stored in ACM
+
   :lb - Map of properties for the load balancer
 
         :ingress-cidrs - IP ranges that can access the service via the load balancer
@@ -111,6 +113,7 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
   If multiple container definitions are provided, the load balancer will be configured to connect to the first one."
   [parent provider name {:keys [zone
                                 subdomain
+                                certificate-arn
                                 vpc-id
                                 container-port
                                 cluster-id
@@ -126,6 +129,10 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                  :ingress [{:protocol "tcp"
                             :fromPort 80
                             :toPort 80
+                            :cidrBlocks (:ingress-cidrs lb)}
+                           {:protocol "tcp"
+                            :fromPort 443
+                            :toPort 443
                             :cidrBlocks (:ingress-cidrs lb)}]})
         domain (if (empty? subdomain)
                  zone
@@ -146,11 +153,21 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                         :protocol "HTTP"
                         :targetType "ip"
                         :vpcId vpc-id})
-        listener (p/resource aws/lb.Listener name alb
-                   {:loadBalancerArn (:arn alb)
-                    :port 80
-                    :defaultActions [{:type "forward"
-                                      :targetGroupArn (:arn target-group)}]})
+        http-listener (p/resource aws/lb.Listener (str name "-http") alb
+                        {:loadBalancerArn (:arn alb)
+                         :port 80
+                         :defaultActions [{:type "redirect"
+                                           :redirect {:port 443
+                                                      :protocol "HTTPS"
+                                                      :statusCode "HTTP_301"}}]})
+        https-listener (p/resource aws/lb.Listener (str name "-https") alb
+                         {:loadBalancerArn (:arn alb)
+                          :certificateArn certificate-arn
+                          :port 443
+                          :protocol "HTTPS"
+                          :sslPolicy "ELBSecurityPolicy-FS-1-1-2019-08"
+                          :defaultActions [{:type "forward"
+                                            :targetGroupArn (:arn target-group)}]})
         log-group (p/resource aws/cloudwatch.LogGroup name group
                     {:name (str "/" name "/" (pulumi/getStack) "/ecs-logs")})
         role (aws-utils/role (str name "-task") group
