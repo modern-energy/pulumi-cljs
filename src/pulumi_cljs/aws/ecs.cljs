@@ -53,6 +53,20 @@ See https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-bal
                           :Action "s3:GetBucketAcl"
                           :Resource (str "arn:aws:s3:::" bucket)}]})))
 
+(defn configure-dns
+  "Configure A DNS entry for the load balancer using Route53"
+  [provider name alb zone domain]
+  (let [zone-name (str zone ".") ; Route53 wants a trailing period.
+        zone-id (p/all [response (p/invoke aws/route53.getZone {:name zone-name} {:provider provider})]
+                  (.-id response))
+        record (p/resource aws/route53.Record (str name "-dns") alb
+                 {:zoneId zone-id
+                  :name domain
+                  :type "CNAME"
+                  :ttl 300
+                  :records [(:dnsName alb)]})]
+    record))
+
 (defn service
   "Build a multi-az AWS Fargate Service with load balancer.
 
@@ -113,9 +127,10 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                             :fromPort 80
                             :toPort 80
                             :cidrBlocks (:ingress-cidrs lb)}]})
-        log-bucket-name (str "access-logs." (if (empty? subdomain)
-                                              zone
-                                              (str subdomain "." zone)))
+        domain (if (empty? subdomain)
+                 zone
+                 (str subdomain "." zone))
+        log-bucket-name (str "access-logs." domain)
         log-bucket (p/resource aws/s3.Bucket (str name "-access-logs") group
                      {:bucket log-bucket-name
                       :policy (access-log-bucket-policy provider log-bucket-name)})
@@ -180,5 +195,6 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                    :deploymentMinimumHealthyPercent 50
                    :networkConfiguration {:subnets (:subnets task)
                                           :securityGroups [(:id sg)]}})]
+    (configure-dns provider name alb zone domain)
     {:dns (:dnsName alb)
      :security-group sg}))

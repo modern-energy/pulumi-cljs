@@ -94,3 +94,11 @@
    based on the Pulumi project name."
   [& suffixes]
   (str/join "-" (cons (p/getProject) suffixes)))
+
+(defn invoke
+  "Invoke a Pulumi function. Converts args map and opts from
+  ClojureScript to JavaScript. Returns a Pulumi Output, not a Promise,
+  to avoid special handling. Does not convert the result to a CLJS
+  object (CLJS objects behave oddly when wrapped in an Output)"
+  [f & args]
+  (p/output (apply f (map clj->js args))))
