@@ -1,7 +1,8 @@
 (ns pulumi-cljs.core
   "Tools for working with Pulumi from CLJS"
   (:require ["@pulumi/pulumi" :as p]
-            [clojure.walk :as walk])
+            [clojure.walk :as walk]
+            [clojure.string :as str])
   (:require-macros [pulumi-cljs.core]))
 
 (defn resource
@@ -30,9 +31,11 @@
   parsing."
   [key]
   (let [val (.require ^p/Config (load-cfg (p/getProject)) key)]
-    (if (= "false" (.toLowerCase val))
-      false
-      val)))
+    (cond
+      (= "false" (.toLowerCase val)) false
+      (= "nil" (.toLowerCase val)) nil
+      (= "null" (.toLowerCase val)) nil
+      :else val)))
 
 (defn cfg-obj
   "Retrieve a data structure value from the Pulumi configuration for the
@@ -59,7 +62,7 @@
 
 (defn all*
   "Alias for pulumi.all since JS modules can't be imported into the Clojure macro namespace"
-  [args]
+  [& args]
   (apply p/all args))
 
 (defn prepare-output
@@ -75,3 +78,19 @@
                       form))
       output)))
 
+(defn json
+  "Convert a Clojure data structure to a JSON string, handling nested
+  Pulumi Output values"
+  [data]
+  (.apply (p/output (clj->js data)) #(js/JSON.stringify %)))
+
+(defn group
+  "Create a Component Resource to group together other sets of resources"
+  [name opts]
+  (new p/ComponentResource (str "group:" name) name (js-obj) (clj->js opts) false))
+
+(defn id
+  "Convenience function making it easier to generate standardized resource IDs
+   based on the Pulumi project name."
+  [& suffixes]
+  (str/join "-" (cons (p/getProject) suffixes)))
