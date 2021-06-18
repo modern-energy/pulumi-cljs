@@ -28,23 +28,36 @@
   "Retrieve a single value from the Pulumi configuration for the current
   project. If the result is the string value 'false', returns boolean
   'false' instead (this avoids a lot of unexpected issues with YAML
-  parsing."
-  [key]
-  (let [val (.require ^p/Config (load-cfg (p/getProject)) key)]
-    (cond
-      (= "false" (.toLowerCase val)) false
-      (= "nil" (.toLowerCase val)) nil
-      (= "null" (.toLowerCase val)) nil
-      :else val)))
+  parsing.
+
+  If the key is missing, throws an error unless a default value is supplied"
+  ([key] (cfg key ::required))
+  ([key default]
+   (let [config (load-cfg (p/getProject))
+         val (if (= default ::required)
+               (.require ^p/Config config key)
+               (.get ^p/Config config key))
+         val (or val default)]
+     (cond
+       (= "false" (.toLowerCase val)) false
+       (= "nil" (.toLowerCase val)) nil
+       (= "null" (.toLowerCase val)) nil
+       :else val))))
 
 (defn cfg-obj
   "Retrieve a data structure value from the Pulumi configuration for the
-  current project, converting data structures to Clojure data."
-  [key]
-  (let [c (load-cfg (p/getProject))]
-    (js->clj
-      (.requireObject ^p/Config c key)
-      :keywordize-keys true)))
+  current project, converting data structures to Clojure data.
+
+  If the key is missing, throws an error unless a default value is supplied."
+  ([key] (cfg-obj key ::required))
+  ([key default]
+   (let [config (load-cfg (p/getProject))
+         val (if (= default ::required)
+               (.requireObject ^p/Config config key)
+               (.getObject ^p/Config config key))]
+     (if val
+       (js->clj val :keywordize-keys true)
+       default))))
 
 (extend-protocol ILookup
   p/Resource
