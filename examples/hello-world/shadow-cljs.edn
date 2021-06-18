@@ -1,0 +1,12 @@
+;; shadow-cljs configuration
+{:deps true
+ :builds
+ {:pulumi {:target :node-library
+           :output-to "generated/stack.js"
+           :output-dir "generated"
+           :exports-var hello-world.main/stack}
+  :test {:target :node-test
+         :output-to "generated/tests.js"
+         :ns-regexp "-test$"}
+
+  }}
