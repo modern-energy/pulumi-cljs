@@ -5,7 +5,7 @@
             [pulumi-cljs.core :as p]
             [pulumi-cljs.aws :as aws-utils]))
 
-(def elb-account-id
+(def ^:private elb-account-id
   {"us-east-1""127311923021"
    "us-east-2" "033677994240"
    "us-west-1" "027434742980"
@@ -53,22 +53,30 @@ See https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-bal
                           :Action "s3:GetBucketAcl"
                           :Resource (str "arn:aws:s3:::" bucket)}]})))
 
-(defn configure-dns
+(defn- configure-dns
   "Configure A DNS entry for the load balancer using Route53"
   [provider name alb zone domain]
   (let [zone-name (str zone ".") ; Route53 wants a trailing period.
         zone-id (p/all [response (p/invoke aws/route53.getZone {:name zone-name} {:provider provider})]
-                  (.-id response))
-        record (p/resource aws/route53.Record (str name "-dns") alb
+                  (.-id response))]
+    (p/resource aws/route53.Record (str name "-dns") alb
                  {:zoneId zone-id
                   :name domain
-                  :type "CNAME"
-                  :ttl 300
-                  :records [(:dnsName alb)]})]
-    record))
+                  :type "A"
+                  :aliases [{:name (:dnsName alb)
+                             :zoneId (:zoneId alb)
+                             :evaluateTargetHealth true}]})
+    (p/resource aws/route53.Record (str name "-dns-wildcard") alb
+      {:zoneId zone-id
+       :name (str "*." domain)
+       :type "A"
+       :aliases [{:name (:dnsName alb)
+                  :zoneId (:zoneId alb)
+                  :evaluateTargetHealth true}]})))
 
 (defn service
-  "Build a multi-az AWS Fargate Service with load balancer.
+  "Build a multi-az AWS Fargate Service, with an optional load balancer
+  for serving HTTPs traffic.
 
 Config properties:
 
@@ -77,6 +85,8 @@ Config properties:
   :container-port - The port on the Container that listens for inbound traffic
 
   :cluster-id - ECS cluster to use
+
+  :task-count - The number of tasks to run
 
   :zone - The hosted zone in which to create a DNS entry.
 
@@ -90,6 +100,7 @@ Config properties:
 
         :subnets - Collection of Subnet ids in which to run the listener(s)
 
+        :health-check - Health check configuration block 
 
   :task - Map of properties for the task
 
@@ -117,6 +128,7 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                                 vpc-id
                                 container-port
                                 cluster-id
+                                task-count
                                 lb
                                 task]}]
   (let [group (p/group name {:providers [provider] :parent parent})
@@ -149,7 +161,7 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                             :enabled true}})
         target-group (p/resource aws/lb.TargetGroup name alb
                        {:port container-port
-                        :healthCheckPort container-port
+                        :healthCheck (:health-check lb)
                         :protocol "HTTP"
                         :targetType "ip"
                         :vpcId vpc-id})
@@ -204,10 +216,11 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                   {:cluster cluster-id
                    :launchType "FARGATE"
                    :taskDefinition (:arn task-definition)
-                   :desiredCount (count (:subnets task))
+                   :desiredCount task-count
                    :loadBalancers [{:targetGroupArn (:arn target-group)
                                     :containerName (:name (first container-definitions))
                                     :containerPort container-port}]
+                   :healthCheckGracePeriod 300
                    :deploymentMaximumPercent 200
                    :deploymentMinimumHealthyPercent 50
                    :networkConfiguration {:subnets (:subnets task)
