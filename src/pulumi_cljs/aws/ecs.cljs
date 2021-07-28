@@ -116,6 +116,9 @@ Config properties:
 
         :subnets - Collection of subnet IDs in which to run the service
 
+  :disconnect-lb - IF true, won't connect the service to the load balancer.
+                   Useful for debugging services failing their health check.
+
 
 Documentation for these values is available at (see https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html).
 
@@ -130,7 +133,8 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                                 cluster-id
                                 task-count
                                 lb
-                                task]}]
+                                task
+                                disconnect-lb]}]
   (let [group (p/group name {:providers [provider] :parent parent})
         lb-sg (p/resource aws/ec2.SecurityGroup (str name "-lb") group
                 {:vpcId vpc-id
@@ -217,9 +221,10 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                    :launchType "FARGATE"
                    :taskDefinition (:arn task-definition)
                    :desiredCount task-count
-                   :loadBalancers [{:targetGroupArn (:arn target-group)
-                                    :containerName (:name (first container-definitions))
-                                    :containerPort container-port}]
+                   :loadBalancers (when-not disconnect-lb
+                                    [{:targetGroupArn (:arn target-group)
+                                      :containerName (:name (first container-definitions))
+                                      :containerPort container-port}])
                    :healthCheckGracePeriod 300
                    :deploymentMaximumPercent 200
                    :deploymentMinimumHealthyPercent 50
