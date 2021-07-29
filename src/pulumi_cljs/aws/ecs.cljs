@@ -161,6 +161,7 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
               {:loadBalancerType "application"
                :securityGroups [(:id lb-sg)]
                :subnets (:subnets lb)
+               :idleTimeout (or (:timeout lb) 60)
                :accessLogs {:bucket (:bucket log-bucket)
                             :enabled true}})
         target-group (p/resource aws/lb.TargetGroup name alb
