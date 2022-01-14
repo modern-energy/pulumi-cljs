@@ -3,6 +3,7 @@
     "dependencies": {
         "@pulumi/pulumi": "^3.0.0",
         "@pulumi/aws": "^4.0.0",
+        "@pulumi/random": "^4.0.0",
         "source-map-support": "^0.5.0"
     },
     "devDependencies": {
