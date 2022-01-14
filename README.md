@@ -34,7 +34,7 @@ An example of such a project configuration is included in the
 
 ## Running Tests
 
-To run tests in this project, run `shadow-cljs compile node-test && node generated/tests.js`.
+To run tests in this project, run `shadow-cljs compile test && node generated/tests.js`.
 
 ## Library Features
 
