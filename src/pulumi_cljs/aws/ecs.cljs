@@ -96,6 +96,8 @@ Config properties:
 
   :lb - Map of properties for the load balancer
 
+        :internal - Whether the load balancer is internal facing
+
         :ingress-cidrs - IP ranges that can access the service via the load balancer
 
         :subnets - Collection of Subnet ids in which to run the listener(s)
@@ -158,7 +160,8 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                      {:bucket log-bucket-name
                       :policy (access-log-bucket-policy provider log-bucket-name)})
         alb (p/resource aws/lb.LoadBalancer name group
-              {:loadBalancerType "application"
+              {:internal (boolean (:internal lb))
+               :loadBalancerType "application"
                :securityGroups [(:id lb-sg)]
                :subnets (:subnets lb)
                :idleTimeout (or (:timeout lb) 60)
