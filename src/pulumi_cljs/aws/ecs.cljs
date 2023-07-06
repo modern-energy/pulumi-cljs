@@ -110,6 +110,8 @@ Config properties:
 
         :cpu - CPU units for the task
 
+        :arch - :amd64 or :arm64
+
         :memory - Memory units for the task
 
         :volumes - Collection of ECS Volume configurations
@@ -202,6 +204,9 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                                              "awslogs-stream-prefix" (str (:name d) "-")}}))
         task-definition (p/resource aws/ecs.TaskDefinition name group
                           {:family (str name "-" (pulumi/getStack))
+                           :runtimePlatform (when (= :arm64 (:arch task))
+                                              {:operatingSystemFamily "LINUX"
+                                               :cpuArchitecture "ARM64"})
                            :executionRoleArn (:arn role)
                            :taskRoleArn (:arn role)
                            :networkMode "awsvpc"
