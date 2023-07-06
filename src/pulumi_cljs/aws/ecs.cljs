@@ -204,9 +204,15 @@ Documentation for these values is available at (see https://docs.aws.amazon.com/
                                              "awslogs-stream-prefix" (str (:name d) "-")}}))
         task-definition (p/resource aws/ecs.TaskDefinition name group
                           {:family (str name "-" (pulumi/getStack))
-                           :runtimePlatform (when (= :arm64 (:arch task))
-                                              {:operatingSystemFamily "LINUX"
-                                               :cpuArchitecture "ARM64"})
+                           :runtimePlatform (when-let [arch (:arch task)]
+                                              (cond
+                                                (= arch :arm64) {:operatingSystemFamily "LINUX"
+                                                                 :cpuArchitecture "ARM64"}
+                                                (= arch :amd64) {:operatingSystemFamily "LINUX"
+                                                                 :cpuArchitecture "X86_64"}
+                                                :else (throw (ex-info "Unknown arch" {}))
+
+                                                ))
                            :executionRoleArn (:arn role)
                            :taskRoleArn (:arn role)
                            :networkMode "awsvpc"
